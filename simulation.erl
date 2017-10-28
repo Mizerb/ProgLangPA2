@@ -4,18 +4,29 @@
 run(Filename) ->
     TestName = "node1",
     Data = parser:read(Filename),
+
+    % take the list of nodes and spawn the nodes that I want
     %io:format("~w~n",[Data]),
     %NodeData = lists:keyfind("node1",3, Data),
     %io:format("~w~n", [NodeData]),
-    [Left, Center, Right] = getInfo(Data, TestName, length(Data)).
+    Pids = create_Actors(length(Data)),
+
+    [Left, Center, Right] = getInfo(Data, Pids,TestName, length(Data)).
     %io:format("~w~n", [Left]),
     %io:format("~w~n", [Center]),
     %io:format("~w~n", [Right]).
 
 
+create_Actors(0) -> [];
+create_Actors(N) ->
+    Input = {1,1,1,1,1,1,1},
+    [spawn(simulation,nodelife,Input) | create_Actors(Data, N-1)];
 
 
-getInfo(Data, Loc, Max) ->
+addPid({ID,IP,Name,Priority,Tolerance}, PID) ->
+    {ID, IP, Name, Priority, Tolerance, PID}.
+
+getInfo(Data, Pids, Loc, Max) ->
     %this would be so much easier in C
     % I want the damn index of the tuple that matches the name
     Center = lists:keyfind(Loc,3, Data),
@@ -45,7 +56,7 @@ master(Info, Time) ->
             master(Info, Time+1)
     end.
 
-                    
+
 
 add(Revolters, Peasant, Time) ->
     case lists:member(Peasant, Revolters) of
@@ -63,9 +74,9 @@ deposeCheck(Leader, Myself, RevCount, Max) ->
 revoltCheck(Leader, Myself, Revolted, Time, Start) ->
     (Leader /= Myself) and (Revolted == false) and ((Time - Start) > getTolerance(Myself)).
 
-getTolerance({_,_,_,_,Tolerance}) -> Tolerance.
-getID({ID,_,_,_,_}) -> ID.
-
+getTolerance({_,_,_,_,Tolerance,_}) -> Tolerance.
+getID({ID,_,_,_,_,_}) -> ID.
+getPid({_,_,_,_,_,PID}) -> PID.
 
 nodelife(Data) ->
     {Left, Center, Right, Master, Total, Living, Revolted} = Data,
@@ -87,15 +98,17 @@ nodelife(Data) ->
                 RevCount = RevCount + 1
             end,
             %send along to next node and hit recursion
-            Left ! {time, Leader, Start, Time + 1, RevCount},
+            getPid(Left) ! {time, Leader, Start, Time + 1, RevCount},
             nodelife({Left, Center, Right, Master, Total, Living, Revolted});
         {voteStart} ->
 
             nodelife({Left, Center, Right, Master, Total, Living, false});
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
-            Left ! {time, Center, Time, Time+1, 0},
-            nodelife({Left, Center, Right, Master, Total, false, false})
+            getPid(Left) ! {time, Center, Time, Time+1, 0},
+            nodelife({Left, Center, Right, Master, Total, false, false});
+        {orient, {Zleft,ZCenter,Zright, ZMaster, ZTotal}}
+            nodelife({Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false});
     end.
 
 
