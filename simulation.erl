@@ -1,5 +1,5 @@
 -module(simulation).
--export([run/1]).
+-export([run/1,nodelife/7]).
 
 run(Filename) ->
     TestName = "node1",
@@ -21,7 +21,7 @@ dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0].
 
 create_Actors(0,_) -> [];
 create_Actors(N,Dummy) ->
-    [spawn(nodelife,dummyArgs(Dummy)) | create_Actors( N-1 , Dummy)].
+    [spawn(?MODULE,nodelife,dummyArgs(Dummy)) | create_Actors( N-1 , Dummy)].
 
 sendInfo(_, _, _, [], _) -> [];
 sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
@@ -37,7 +37,8 @@ sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
             Left = lists:nth(Index-1,Pids),
             Right = lists:nth(Index+1,Pids)
     end,
-    lists:nth(Index,Pids) ! {orient,Left, Working, Right, self(), Max},
+    %writeOut("SENDING TO ~w ~n", [lists:nth(Index, Pids)]),
+    lists:nth(Index,Pids) ! {information,Left, Working, Right, self(), Max},
     sendInfo(Data,Pids, Max, Tail,Index+1).
 
 getInfo(Data, Pids, Loc, Max) ->
@@ -97,6 +98,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted) ->
     %Left is node to Left, Center is self, Right is node to right, Master
     % is master node, that prints stuff, & Living is if this node has been
     % the leader before
+    writeOut("I'm with stupid~n",[]),
     receive
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
@@ -121,7 +123,8 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted) ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
             nodelife(Left, Center, Right, Master, Total, false, false);
-        {orient, {Zleft,ZCenter,Zright, ZMaster, ZTotal}} ->
+        {information, Zleft,ZCenter,Zright, ZMaster, ZTotal} ->
+            %writeOut("REAL BOY ~w~n",[ZCenter]),
             nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false)
     end.
 
