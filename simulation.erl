@@ -16,9 +16,12 @@ run(Filename) ->
     %io:format("~w~n", [Center]),
     %io:format("~w~n", [Right]).
 
+
+dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0].
+
 create_Actors(0,_) -> [];
 create_Actors(N,Dummy) ->
-    [spawn(simulation,nodelife,Dummy) | create_Actors( N-1 , Dummy)].
+    [spawn(nodelife,dummyArgs(Dummy)) | create_Actors( N-1 , Dummy)].
 
 sendInfo(_, _, _, [], _) -> [];
 sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
@@ -90,8 +93,7 @@ getID({ID,_,_,_,_}) -> ID.
 getName({_,_,Name,_,_}) -> Name.
 
 
-nodelife(Data) ->
-    {Left, Center, Right, Master, Total, Living, Revolted} = Data,
+nodelife(Left, Center, Right, Master, Total, Living, Revolted) ->
     %Left is node to Left, Center is self, Right is node to right, Master
     % is master node, that prints stuff, & Living is if this node has been
     % the leader before
@@ -101,7 +103,7 @@ nodelife(Data) ->
             case deposeCheck(Leader, Center, RevCount, Total) of true->
                 writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
                 Master ! {voteStart, Time},
-                nodelife({Left, Center, Right, Master, Total, false, false})
+                nodelife(Left, Center, Right, Master, Total, false, false)
             end,
             %Check if this node revolts
             case revoltCheck(Leader, Center, Revolted, Time, Start) of true ->
@@ -111,16 +113,16 @@ nodelife(Data) ->
             end,
             %send along to next node and hit recursion
             Left ! {time, Leader, Start, Time + 1, RevCount},
-            nodelife({Left, Center, Right, Master, Total, Living, Revolted});
+            nodelife(Left, Center, Right, Master, Total, Living, Revolted);
         {voteStart} ->
 
-            nodelife({Left, Center, Right, Master, Total, Living, false});
+            nodelife(Left, Center, Right, Master, Total, Living, false);
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
-            nodelife({Left, Center, Right, Master, Total, false, false});
+            nodelife(Left, Center, Right, Master, Total, false, false);
         {orient, {Zleft,ZCenter,Zright, ZMaster, ZTotal}} ->
-            nodelife({Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false})
+            nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false)
     end.
 
 
