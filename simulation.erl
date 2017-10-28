@@ -9,19 +9,33 @@ run(Filename) ->
     %io:format("~w~n",[Data]),
     %NodeData = lists:keyfind("node1",3, Data),
     %io:format("~w~n", [NodeData]),
-    Pids = create_Actors(length(Data)),
+    Pids = create_Actors(length(Data), lists:nth(1,Data)),
 
-    [Left, Center, Right] = getInfo(Data, Pids,TestName, length(Data)).
+    sendInfo(Data, Pids, length(Data), Data, 1).
     %io:format("~w~n", [Left]),
     %io:format("~w~n", [Center]),
     %io:format("~w~n", [Right]).
 
+create_Actors(0,_) -> [];
+create_Actors(N,Dummy) ->
+    [spawn(simulation,nodelife,Dummy) | create_Actors( N-1 , Dummy)].
 
-create_Actors(N) ->
-    if N == 0 -> [] end,
-    Input = {1,1,1,1,1},
-    [spawn(simulation,nodelife,Input) | create_Actors( N-1)].
-
+sendInfo(_, _, _, [], _) -> [];
+sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
+    %Grab left and right depending on Index of item
+    if
+        Index == 1 ->
+            Left = lists:nth(Max,Pids),
+            Right = lists:nth(Index+1,Pids);
+        Index == Max ->
+            Right = lists:nth(1, Pids),
+            Left = lists:nth(Index-1,Pids);
+        true ->
+            Left = lists:nth(Index-1,Pids),
+            Right = lists:nth(Index+1,Pids)
+    end,
+    lists:nth(Index,Pids) ! {orient,Left, Working, Right, self(), Max},
+    sendInfo(Data,Pids, Max, Tail,Index+1).
 
 getInfo(Data, Pids, Loc, Max) ->
     %this would be so much easier in C
@@ -73,6 +87,7 @@ revoltCheck(Leader, Myself, Revolted, Time, Start) ->
 
 getTolerance({_,_,_,_,Tolerance}) -> Tolerance.
 getID({ID,_,_,_,_}) -> ID.
+getName({_,_,Name,_,_}) -> Name.
 
 
 nodelife(Data) ->
