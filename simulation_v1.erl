@@ -1,5 +1,5 @@
 -module(simulation_v1).
--export([run/1,nodelife/9]).
+-export([run/1,nodelife/10]).
 
 run(Filename) ->
     TestName = "node1",
@@ -18,7 +18,7 @@ run(Filename) ->
     %io:format("~w~n", [Center]),
     %io:format("~w~n", [Right]).
  
-dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0,0,0].
+dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0,0,0,0].
 
 create_Actors(0,_) -> [];
 create_Actors(N,Dummy) ->
@@ -128,7 +128,7 @@ priorityLess(WasLeader, MyPriority, SomeonesPriority) ->
 gotMyOwnMessage(MyID, SomeonesID) ->
 	MyID == SomeonesID.
 
-nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNodePID) ->
+nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNodePID, MaxPriority) ->
     % Left is node to Left, Center is self, Right is node to right, Master
     % is master node, that prints stuff, & Living is if this node has been
     % the leader before
@@ -139,6 +139,11 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
     		getPriority(Center);
     		%io:format("Priority: ~w~n", [getPriority(Center)]);
 
+    	% getting a reply means I can no longer be leader
+    	{replyMessage, Sender_ID, Sender_Priority} ->
+    		Living = false,
+    		io:format("Got a reply. I am passive now.~n", []);
+
     	{message, Sender_ID, Sender_Priority} ->
 
     		io:format("Node~w received a message from node ~w ~n", [self(), Sender_ID]),
@@ -146,7 +151,8 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
     		case priorityGreater(WasLeader, getPriority(Center), Sender_Priority) of 
     			true ->
     				Living = false,
-    				io:format("I can not be leader. Priority: ~w~n", [getPriority(Center)]),
+    				io:format("I can not be leader. Priority: ~w. ~n", [getPriority(Center)]),
+    				%MaxPriority ! Sender_Priority,
     				% forward the original message to the next node
     				NextNodePID ! {message, Sender_ID, Sender_Priority};
     			_ ->
@@ -155,10 +161,11 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
     		%if my priority is still higher than anyone I have talked to
     		case priorityLess(WasLeader, getPriority(Center), Sender_Priority) of 
     			true ->
+    				Sender_ID ! {replyMessage, self(), getPriority(Center)},
 	    			% send my own message to the next node
 	    			NextNodePID ! {message, self(), getPriority(Center)},
-	    			io:format("The leader is node~w.~n", [getPriority(Center)]);
-	    		_ ->
+	    			io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]);
+	    		_ ->																	
 	          		ok
     		end,
     		% check if the actor got its own message
@@ -178,7 +185,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
             case deposeCheck(Leader, Center, RevCount, Total) of true->
                 writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
                 Master ! {voteStart, Time},
-                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader, NextNodePID)
+                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader, NextNodePID, MaxPriority)
             end,
             %Check if this node revolts
             case revoltCheck(Leader, Center, Revolted, Time, Start) of true ->
@@ -188,22 +195,23 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
             end,
             %send along to next node and hit recursion
             Left ! {time, Leader, Start, Time + 1, RevCount},
-            nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNodePID);
+            nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNodePID, MaxPriority);
         {voteStart} ->
         	io:format("node ~w received msg to start election.~n", [self()]),
         	%io:format("The next node is ~w~n",[NextNodePID]),
+        	Living = false,
         	NextNodePID ! {message, self(), getPriority(Center)},
-        	nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader, NextNodePID);
+        	nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader, NextNodePID, MaxPriority);
         {voteStop} ->
 
-            nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader, NextNodePID);
+            nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader, NextNodePID, MaxPriority);
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
-            nodelife(Left, Center, Right, Master, Total, false, false, WasLeader, NextNodePID);
+            nodelife(Left, Center, Right, Master, Total, false, false, WasLeader, NextNodePID, MaxPriority);
         {information, Zleft,ZCenter,Zright, ZMaster, ZTotal, ZNextNodePID} ->
             %writeOut("REAL BOY ~w~n",[ZCenter]),
-            nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false, false, ZNextNodePID)
+            nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false, false, ZNextNodePID, 0)
 
 
 
