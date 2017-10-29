@@ -1,5 +1,5 @@
 -module(simulation_v1).
--export([run/1,nodelife/9]).
+-export([run/1,nodelife/8]).
 
 run(Filename) ->
     TestName = "node1",
@@ -27,7 +27,7 @@ sleep(T) ->
 	end.
 
  
-dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0,0,0].
+dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0,0].
 
 create_Actors(0,_) -> [];
 create_Actors(N,Dummy) ->
@@ -48,7 +48,7 @@ sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
             Right = lists:nth(Index+1,Pids)
     end,
     writeOut("Initialized node ~w ~n", [lists:nth(Index, Pids)]),
-    lists:nth(Index,Pids) ! {information,Left, Working, Right, self(), Max, Right},
+    lists:nth(Index,Pids) ! {information,Left, Working, Right, self(), Max},
     %lists:nth(Index,Pids) ! {message, 0, 20},
     sendInfo(Data,Pids, Max, Tail,Index+1).
 
@@ -157,7 +157,7 @@ gotMyOwnMessage(Living, MyID, SomeonesID) ->
 	(MyID == SomeonesID) and (Living == true).
 
 % left and right are pids. center is the tuple of current node info
-nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNodePID) ->
+nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
   
     receive
     	   			  		
@@ -174,7 +174,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
     				Left ! {leftmessage, Sender_ID, Sender_Priority},
     				
     				% set myself to passive (living = false)
-    				nodelife(Left, Center, Right, Master, Total, false, Revolted, WasLeader, NextNodePID);
+    				nodelife(Left, Center, Right, Master, Total, false, Revolted, WasLeader);
     			_ ->
           			ok
     		end,
@@ -188,7 +188,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
 	    			io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]),
 
 	    			% i am still active (Living = true)
-	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader, NextNodePID);
+	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
 	    		_ ->																	
 	          		ok
     		end,
@@ -217,7 +217,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
     				Right ! {rightmessage, Sender_ID, Sender_Priority},
 
     				% set myself to passive (living = false)
-    				nodelife(Left, Center, Right, Master, Total, false, Revolted, WasLeader, NextNodePID);
+    				nodelife(Left, Center, Right, Master, Total, false, Revolted, WasLeader);
     			_ ->
           			ok
     		end,
@@ -231,7 +231,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
 	    			io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]),
 
 	    			% i am still active (Living = true)
-	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader, NextNodePID);
+	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
 	    		_ ->																	
 	          		ok
     		end,
@@ -252,7 +252,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
             case deposeCheck(Leader, Center, RevCount, Total) of true->
                 writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
                 Master ! {voteStart, Time},
-                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader, NextNodePID)
+                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader)
             end,
             %Check if this node revolts
             case revoltCheck(Leader, Center, Revolted, Time, Start) of true ->
@@ -262,7 +262,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
             end,
             %send along to next node and hit recursion
             Left ! {time, Leader, Start, Time + 1, RevCount},
-            nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNodePID);
+            nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader);
         {voteStart} ->
         	io:format("node ~w received msg to start election.~n", [self()]),
 
@@ -270,17 +270,17 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader, NextNo
         	Right ! {rightmessage, self(), getPriority(Center)},
 
         	% initially all nodes are active (Living = true)
-        	nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader, NextNodePID);
+        	nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
         {voteStop} ->
         	io:format("      ~w: ~w: active: ~w~n", [self(), getPriority(Center), Living]);
-            %nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader, NextNodePID);
+            %nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader);
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
-            nodelife(Left, Center, Right, Master, Total, false, false, WasLeader, NextNodePID);
-        {information, Zleft,ZCenter,Zright, ZMaster, ZTotal, ZNextNodePID} ->
+            nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+        {information, Zleft,ZCenter,Zright, ZMaster, ZTotal} ->
             %writeOut("REAL BOY ~w~n",[ZCenter]),
-            nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false, false, ZNextNodePID);
+            nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false, false);
 
          {returnPriority} ->
     		getPriority(Center);
