@@ -51,7 +51,7 @@ sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
             Left = lists:nth(Index-1,Pids),
             Right = lists:nth(Index+1,Pids)
     end,
-    writeOut("Initialized node ~w ~n", [lists:nth(Index, Pids)]),
+    %writeOut("Initialized node ~w ~n", [lists:nth(Index, Pids)]),
     lists:nth(Index,Pids) ! {information,Left, Working, Right, self(), Max},
     sendInfo(Data,Pids, Max, Tail,Index+1).
 
@@ -86,7 +86,7 @@ getInfo(Data, Pids, Loc, Max) ->
     [Left, Center, Right].
 
 
-terminate([]) -> writeOut("End of simulation",[]), exit(1);
+terminate([]) -> writeOut("End of simulation~n",[]);
 terminate([Working | Tail]) ->
     Working ! {dead},
     terminate(Tail).
@@ -96,20 +96,19 @@ master(Pids, Time, ElectionSeason, Count) ->
     receive
         %Begin a vote
         {shit}->
-            io:format("Shit~w~n",[0]),
+            %io:format("Shit~w~n",[0]),
             master(Pids,Time,ElectionSeason, Count);
         {dude,TimeA} ->
             if
                 Count >= length(Pids) ->
                     terminate(Pids);
                 true->
-                    ok
-            end,
-            io:format("the vote will begin~n"),
-            holdElection(Pids),
-            master(Pids, TimeA, true, Count);
+                    %io:format("the vote will begin~n"),
+                    holdElection(Pids),
+                    master(Pids, TimeA, true, Count)
+            end;
         {voteWin, From} ->
-            writeOut("MASTER ID ~w~n",[self()]),
+            %writeOut("MASTER ID ~w~n",[self()]),
             if
                 ElectionSeason == true ->
                     From ! {startClock, Time},
@@ -199,7 +198,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
-            writeOut("Time~w~n",[Time]),
+            %writeOut("Time~w~n",[Time]),
             if
                 Time > 210 ->
                     exit(0);
@@ -209,8 +208,8 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
             case deposeCheck(Leader, Center, RevCount, Total) of
                 true->
                     writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
-                    writeOut("My Master is ~w~n", [Master]),
-                    Master ! {shit},
+                    %writeOut("My Master is ~w~n", [Master]),
+                    %Master ! {shit},
                     Master ! {dude,Time+1},
                     nodelife(Left, setPriority(Center), Right, Master, Total, true, false, false);
                 _ ->
@@ -220,14 +219,14 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
                             Left ! {time, Leader, Start, Time +1, RevCount +1},
                             nodelife(Left,Center,Right, Master,Total,Living,true,WasLeader);
                         _ ->
-                            writeOut("Revolt?ID ~w  ~w   ~w  ~n",[getID(Center),getTolerance(Center), Time-Start]),
+                            %writeOut("Revolt?ID ~w  ~w   ~w  ~n",[getID(Center),getTolerance(Center), Time-Start]),
                             Left ! {time, Leader, Start, Time + 1, RevCount},
                             nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader)
                     end
             end;
             %Check if this node revolts
         {voteStart} ->
-        	io:format("node ~w received msg to start election.~n", [self()]),
+        	%io:format("node ~w received msg to start election.~n", [self()]),
 
         	Left  ! {leftmessage, self(), getPriority(Center)},
         	Right ! {rightmessage, self(), getPriority(Center)},
@@ -235,11 +234,11 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
         	% initially all nodes are active (Living = true)
         	nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
         {voteStop} ->
-        	io:format("      ~w: ~w: active: ~w~n", [self(), getPriority(Center), Living]),
+        	%io:format("      ~w: ~w: active: ~w~n", [self(), getPriority(Center), Living]),
         	if
         		% if this node is the current leader, set (WasLeader = true)
         		Living == true ->
-        			io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+        			%io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
         			master ! {voteWin, self()},
         			nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
         		true ->
@@ -258,9 +257,6 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     end.
 
 
-
-
-
-
 writeOut(Written, Data) ->
-    io:format(Written,Data).
+    file:write_file("output.txt", io_lib:fwrite(Written,Data), [append]).
+    %io:format(Written,Data).
