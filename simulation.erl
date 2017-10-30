@@ -156,87 +156,46 @@ gotMyOwnMessage(Living, MyID, SomeonesID) ->
 
 % left and right are pids. center is the tuple of current node info
 nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
-  
+
     receive
-    	   			  		
     	{leftmessage, Sender_ID, Sender_Priority} ->
 
     		%io:format("Node~w received a left message from node ~w ~n", [self(), Sender_ID]),
             % check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of
-    			true ->
-                    %io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+    		Own = gotMyOwnMessage(Living, self(), Sender_ID),
+            Greater = priorityGreater( getPriority(Center), Sender_Priority),
+            Less = priorityLess(Living, getPriority(Center), Sender_Priority),
+            if
+                Own == true ->
                     Master ! {voteWin, self()},
                     nodelife(Left, Center, Right, Master, Total, Living, false, true);
-        	    _ ->
-        		    ok
-        	end,
-    		% someone has a higher priority than me or if I was already leader
-    		case priorityGreater( getPriority(Center), Sender_Priority) of
-    			true ->
-    				%io:format("I can not be leader. Priority: ~w. ~n", [getPriority(Center)]),
-       				% forward the original message to the next node to the left
-    				Left ! {leftmessage, Sender_ID, Sender_Priority},
-    				% set myself to passive (living = false)
-    				nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
-    			_ ->
-          			ok
-    		end,
-
-    		% my priority is still higher than anyone I have talked to
-    		case priorityLess(Living, getPriority(Center), Sender_Priority) of
-    			true ->
-	    			% send my own message to the next node
-	    			%Left ! {leftmessage, self(), getPriority(Center)},
-
-	    			%io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]),
-
-	    			% i am still active (Living = true)
-	    			nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
-	    		_ ->
-	          		ok
-    		end;
+                Greater == true ->
+                    Left ! {leftmessage, Sender_ID, Sender_Priority},
+                    nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+                Less == true ->
+                    nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
+                true ->
+                    nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader)
+            end;
 
 
     	{rightmessage, Sender_ID, Sender_Priority} ->
 
-    		%io:format("Node~w received a right message from node ~w ~n", [self(), Sender_ID]),
-            % check if the actor got its own message
-            case gotMyOwnMessage(Living, self(), Sender_ID) of
-    			true ->
-                    %io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+    		Own = gotMyOwnMessage(Living, self(), Sender_ID),
+            Greater = priorityGreater( getPriority(Center), Sender_Priority),
+            Less = priorityLess(Living, getPriority(Center), Sender_Priority),
+            if
+                Own == true ->
                     Master ! {voteWin, self()},
                     nodelife(Left, Center, Right, Master, Total, Living, false, true);
-        	    _ ->
-        		    ok
-        	end,
-    		% someone has a higher priority than me or if I was already leader
-    		case priorityGreater( getPriority(Center), Sender_Priority) of
-    			true ->
-    				%io:format("I can not be leader. Priority: ~w. ~n", [getPriority(Center)]),
-
-    				% forward the original message to the next node to the right
-    				Right ! {rightmessage, Sender_ID, Sender_Priority},
-
-    				% set myself to passive (living = false)
-    				nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
-    			_ ->
-          			ok
-    		end,
-
-    		% my priority is still higher than anyone I have talked to
-    		case priorityLess(Living,  getPriority(Center), Sender_Priority) of
-    			true ->
-	    			% send my own message to the next node
-	    			%Right ! {rightmessage, self(), getPriority(Center)},
-
-	    			%io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]),
-
-	    			% i am still active (Living = true)
-	    			nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
-	    		_ ->
-	          		ok
-    		end;
+                Greater == true ->
+                    Right ! {leftmessage, Sender_ID, Sender_Priority},
+                    nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+                Less == true ->
+                    nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
+                true ->
+                    nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader)
+            end;
 
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
