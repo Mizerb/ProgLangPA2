@@ -10,7 +10,7 @@ run(Filename) ->
     %NodeData = lists:keyfind("node1",3, Data),
     %io:format("~w~n", [NodeData]),
     Pids = create_Actors(length(Data), lists:nth(1,Data), Data),
-
+    io:format("~w~n", [Pids]),
 
     sendInfo(Data, Pids, length(Data), Data, 1),
     holdElection(Pids),
@@ -25,17 +25,14 @@ run(Filename) ->
     %io:format("~w~n", [Center]),
     %io:format("~w~n", [Right]).
 
-sleep(T) ->
-	receive
-	after T -> ok
-	end.
+
 
  
 dummyArgs(Dummy) -> [0,Dummy,0,0,0,0,0,0].
 
 create_Actors(0,_,[]) -> [];
 create_Actors(N,Dummy, [Working | Data]) ->
-    Target = getNode(Working),
+    Target = list_to_atom(getNode(Working)),
     [spawn(Target,?MODULE,nodelife,dummyArgs(Dummy)) | create_Actors( N-1 , Dummy,Data)].
 
 sendInfo(_, _, _, [], _) -> [];
@@ -87,7 +84,7 @@ getInfo(Data, Pids, Loc, Max) ->
     [Left, Center, Right].
 
 
-terminate([]) -> file:write_file("output.txt", "End of simulation~n", [append]);
+terminate([]) -> file:write_file("output.txt", "End of simulation", [append]);
 terminate([Working | Tail]) ->
     Working ! {dead},
     terminate(Tail).
@@ -96,11 +93,8 @@ terminate([Working | Tail]) ->
 master(Pids, Time, ElectionSeason, Count) ->
     receive
         %Begin a vote
-        {writeout, Message, Data}->
-            file:write_file("output.txt", io_lib:fwrite(Message,Data), [append]),
-            %io:format("Shit~w~n",[0]),
-            master(Pids,Time,ElectionSeason, Count);
         {dude,TimeA} ->
+            %io:format("Here"),
             if
                 Count >= length(Pids) ->
                     terminate(Pids);
@@ -110,14 +104,18 @@ master(Pids, Time, ElectionSeason, Count) ->
                     master(Pids, TimeA, true, Count)
             end;
         {voteWin, From} ->
-            %writeOut("MASTER ID ~w~n",[self()]),
+            %io:format("MASTER ID ~w~n",[From]),
             if
                 ElectionSeason == true ->
                     From ! {startClock, Time},
                     master(Pids,Time+1, false, Count+1);
                 true ->
                     master(Pids, Time, false, Count)
-            end
+            end;
+        {write,Message, Data}->
+            file:write_file("output.txt", io_lib:fwrite(Message,Data), [append]),
+            %io:format("Shit~w~n",[0]),
+            master(Pids,Time,ElectionSeason, Count)
     end.
 
 
@@ -223,7 +221,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
             end;
             %Check if this node revolts
         {voteStart} ->
-        	%io:format("node ~w received msg to start election.~n", [self()]),
+        	%writeOut("node ~w received msg to start election.~n", [self()], Master),
 
         	Left  ! {leftmessage, self(), getPriority(Center)},
         	Right ! {rightmessage, self(), getPriority(Center)},
@@ -256,5 +254,5 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
 writeOut(Written,Data,Master) ->
     %file:write_file("output.txt", io_lib:fwrite(Written,Data), [append]).
-    %io:format(Written,Data)
-    Master ! {Written,Data}.
+    %io:format(Written,Data).
+    Master ! {write,Written,Data}.
