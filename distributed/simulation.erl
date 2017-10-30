@@ -58,37 +58,10 @@ holdElection([Working | Tail]) ->
     Working ! {voteStart},
     holdElection(Tail).
 
-getResults([]) -> ok;
-getResults( [Working | Tail]) ->
-    %Grab left and right depending on Index of item
-    Working ! {voteStop},
-    getResults(Tail).
-
-
-getInfo(Data, Pids, Loc, Max) ->
-    %this would be so much easier in C
-    % I want the damn index of the tuple that matches the name
-    Center = lists:keyfind(Loc,3, Data),
-    {Index,_} = string:to_integer(string:substr(Loc, 5)),
-    if
-        Index == 1 ->
-            Left = lists:nth(Max,Data),
-            Right = lists:nth(Index+1,Data);
-        Index == Max ->
-            Right = lists:nth(1, Data),
-            Left = lists:nth(Index-1,Data);
-        true ->
-            Left = lists:nth(Index-1,Data),
-            Right = lists:nth(Index+1,Data)
-    end,
-    [Left, Center, Right].
-
-
 terminate([]) -> file:write_file("output.txt", "End of simulation", [append]);
 terminate([Working | Tail]) ->
     Working ! {dead},
     terminate(Tail).
-
 
 master(Pids, Time, ElectionSeason, Count) ->
     receive
@@ -118,18 +91,6 @@ master(Pids, Time, ElectionSeason, Count) ->
             master(Pids,Time,ElectionSeason, Count)
     end.
 
-
-
-add(Revolters, Peasant, Time) ->
-    case lists:member(Peasant, Revolters) of
-        false ->
-            io:format("ID=~w revolted at t=~w~n", [getID(Peasant),Time]),
-            [Peasant | Revolters];
-        true ->
-            Revolters
-    end.
-
-
 deposeCheck(Leader, Myself, RevCount, Max) ->
     (Leader == Myself) and (RevCount >= ((Max+1) div 2) ).
 
@@ -138,7 +99,7 @@ revoltCheck(Leader, Myself, Revolted, Time, Start) ->
 
 getTolerance({_,_,_,_,Tolerance}) -> Tolerance.
 getID({ID,_,_,_,_}) -> ID.
-getName({_,_,Name,_,_}) -> Name.
+%getName({_,_,Name,_,_}) -> Name.
 getPriority({_,_,_,Priority,_}) -> Priority.
 setPriority({A,B,C,_,D}) -> {A,B,C,0,D}.
 getNode({_,Host,Name,_,_}) -> string:concat(string:concat( Name, "@"),Host).
