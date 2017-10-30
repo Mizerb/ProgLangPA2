@@ -89,18 +89,23 @@ getInfo(Data, Pids, Loc, Max) ->
 master(Pids, Time, ElectionSeason) ->
     receive
         %Begin a vote
-        {voteStart, Time} ->
-            io:format("the vote will begin"),
+        {shit}->
+            io:format("Shit~w~n",[0]),
+            master(Pids,Time,ElectionSeason);
+        {dude,TimeA} ->
+            io:format("the vote will begin~n"),
             holdElection(Pids),
-            master(Pids, Time, true);
+            master(Pids, TimeA, true);
         {voteWin, From} ->
+            writeOut("MASTER ID ~w~n",[self()]),
             if
                 ElectionSeason == true ->
                     From ! {startClock, Time},
                     master(Pids,Time+1, false);
                 true ->
                     master(Pids, Time, false)
-            end
+            end,
+            master(Pids,Time,false)
     end.
 
 
@@ -226,7 +231,9 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
              case deposeCheck(Leader, Center, RevCount, Total) of
                 true->
                     writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
-                    Master ! {voteStart, Time},
+                    writeOut("My Master is ~w~n", [Master]),
+                    Master ! {shit},
+                    Master ! {dude,Time},
                     nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
                 _ ->
                     ok
