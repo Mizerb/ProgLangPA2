@@ -140,7 +140,15 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     	{leftmessage, Sender_ID, Sender_Priority} ->
 
     		io:format("Node~w received a left message from node ~w ~n", [self(), Sender_ID]),
-
+            % check if the actor got its own message
+    		case gotMyOwnMessage(Living, self(), Sender_ID) of
+    			true ->
+                    io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+                    Master ! {voteWin, self()},
+                    nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
+        	    _ ->
+        		    ok
+        	end,
     		% someone has a higher priority than me or if I was already leader
     		case priorityGreater(WasLeader, getPriority(Center), Sender_Priority) of 
     			true ->
@@ -165,23 +173,21 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
 	    		_ ->
 	          		ok
-    		end,
-
-    		% check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of
-    			true ->
-                    io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
-                    Master ! {voteWin, self()},
-                    nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
-        	    _ ->
-        		    nodelife(Left, Center, Right, Master, Total, Living, Revolted, false)
-        	end;
+    		end;
 
 
     	{rightmessage, Sender_ID, Sender_Priority} ->
 
     		io:format("Node~w received a right message from node ~w ~n", [self(), Sender_ID]),
-
+            % check if the actor got its own message
+            case gotMyOwnMessage(Living, self(), Sender_ID) of
+    			true ->
+                    io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+                    Master ! {voteWin, self()},
+                    nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
+        	    _ ->
+        		    ok
+        	end,
     		% someone has a higher priority than me or if I was already leader
     		case priorityGreater(WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
@@ -208,25 +214,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
 	    		_ ->
 	          		ok
-    		end,
-
-    		% check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of
-    			true ->
-    				io:format("R BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]),
-    				if
-        		        % if this node is the current leader, set (WasLeader = true)
-        		        Living == true ->
-                            io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
-                            master ! {voteWin, self()},
-                            nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
-        		        true ->
-        			        nodelife(Left, Center, Right, Master, Total, Living, Revolted, false)
-        	        end;
-                    %nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
-    			_ ->
-          			ok
-    		end;  
+    		end;
 
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
