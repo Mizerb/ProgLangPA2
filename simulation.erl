@@ -14,7 +14,7 @@ run(Filename) ->
    
     sendInfo(Data, Pids, length(Data), Data, 1),
     holdElection(Pids),
-    master(Pids, 0).
+    master(Pids, 0, true).
     % holdElection(Data, Pids, length(Data), Data, 1),
     % sleep(3000),
     % getResults(Data, Pids, length(Data), Data, 1).
@@ -86,16 +86,21 @@ getInfo(Data, Pids, Loc, Max) ->
     [Left, Center, Right].
 
 
-master(Pids, Time) ->
+master(Pids, Time, ElectionSeason) ->
     receive
         %Begin a vote
         {voteStart, Time} ->
             io:format("the vote will begin"),
             holdElection(Pids),
-            master(Pids, Time);
+            master(Pids, Time, true);
         {voteWin, From} ->
-            From ! {startClock, Time},
-            master(Pids, Time+1)
+            if
+                ElectionSeason == true ->
+                    From ! {startClock, Time},
+                    master(Pids,Time+1, false);
+                true ->
+                    master(Pids, Time, false)
+            end
     end.
 
 
@@ -165,7 +170,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
 	    			% send my own message to the next node
-	    			Left ! {leftmessage, self(), getPriority(Center)},
+	    			%Left ! {leftmessage, self(), getPriority(Center)},
 
 	    			io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]),
 
@@ -206,7 +211,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
 	    			% send my own message to the next node
-	    			Right ! {rightmessage, self(), getPriority(Center)},
+	    			%Right ! {rightmessage, self(), getPriority(Center)},
 
 	    			io:format("Node with priority ~w might be leader, ~n", [getPriority(Center)]),
 
@@ -255,7 +260,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
         		true ->
         			nodelife(Left, Center, Right, Master, Total, Living, Revolted, false)
         	end;
-            
+
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
