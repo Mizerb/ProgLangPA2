@@ -14,8 +14,7 @@ run(Filename) ->
    
     sendInfo(Data, Pids, length(Data), Data, 1),
     holdElection(Pids),
-    sleep(3000),
-    getResults(Pids).
+    master(Pids, 0).
     % holdElection(Data, Pids, length(Data), Data, 1),
     % sleep(3000),
     % getResults(Data, Pids, length(Data), Data, 1).
@@ -87,15 +86,16 @@ getInfo(Data, Pids, Loc, Max) ->
     [Left, Center, Right].
 
 
-master(Info, Time) ->
+master(Pids, Time) ->
     receive
         %Begin a vote
         {voteStart, Time} ->
             io:format("the vote will begin"),
-            master(Info, Time);
+            holdElection(Pids),
+            master(Pids, Time);
         {voteWin, From} ->
             From ! {startClock, Time},
-            master(Info, Time+1)
+            master(Pids, Time+1)
     end.
 
 
@@ -145,10 +145,8 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		case priorityGreater(WasLeader, getPriority(Center), Sender_Priority) of 
     			true ->
     				io:format("I can not be leader. Priority: ~w. ~n", [getPriority(Center)]),
-       				
        				% forward the original message to the next node to the left
     				Left ! {leftmessage, Sender_ID, Sender_Priority},
-    				
     				% set myself to passive (living = false)
     				nodelife(Left, Center, Right, Master, Total, false, Revolted, WasLeader);
     			_ ->
@@ -156,7 +154,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		end,
 
     		% my priority is still higher than anyone I have talked to
-    		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of 
+    		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
 	    			% send my own message to the next node
 	    			Left ! {leftmessage, self(), getPriority(Center)},
@@ -165,19 +163,19 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
 	    			% i am still active (Living = true)
 	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
-	    		_ ->																	
+	    		_ ->
 	          		ok
     		end,
 
     		% check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of 
+    		case gotMyOwnMessage(Living, self(), Sender_ID) of
     			true ->
-    			
-    				io:format("L BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]);
-    				%nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
-    			_ ->
-          			ok
-    		end;    		  		
+                    io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+                    Master ! {voteWin, self()},
+                    nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
+        	    _ ->
+        		    nodelife(Left, Center, Right, Master, Total, Living, Revolted, false)
+        	end;
 
 
     	{rightmessage, Sender_ID, Sender_Priority} ->
@@ -185,7 +183,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		io:format("Node~w received a right message from node ~w ~n", [self(), Sender_ID]),
 
     		% someone has a higher priority than me or if I was already leader
-    		case priorityGreater(WasLeader, getPriority(Center), Sender_Priority) of 
+    		case priorityGreater(WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
     				io:format("I can not be leader. Priority: ~w. ~n", [getPriority(Center)]),
 
@@ -199,7 +197,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		end,
 
     		% my priority is still higher than anyone I have talked to
-    		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of 
+    		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
 	    			% send my own message to the next node
 	    			Right ! {rightmessage, self(), getPriority(Center)},
@@ -215,8 +213,17 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		% check if the actor got its own message
     		case gotMyOwnMessage(Living, self(), Sender_ID) of
     			true ->
-    				io:format("R BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]);
-    				%nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
+    				io:format("R BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]),
+    				if
+        		        % if this node is the current leader, set (WasLeader = true)
+        		        Living == true ->
+                            io:format("~n~nThe leader is: ~w. Priority: ~w~n~n~n", [getID(Center), getPriority(Center)]),
+                            master ! {voteWin, self()},
+                            nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
+        		        true ->
+        			        nodelife(Left, Center, Right, Master, Total, Living, Revolted, false)
+        	        end;
+                    %nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
     			_ ->
           			ok
     		end;  
@@ -264,7 +271,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
-            nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+            nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
         {information, Zleft,ZCenter,Zright, ZMaster, ZTotal} ->
             %writeOut("REAL BOY ~w~n",[ZCenter]),
             nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false, false)
