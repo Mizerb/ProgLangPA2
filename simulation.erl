@@ -208,12 +208,12 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
 	    			% i am still active (Living = true)
 	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
-	    		_ ->																	
+	    		_ ->
 	          		ok
     		end,
 
     		% check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of 
+    		case gotMyOwnMessage(Living, self(), Sender_ID) of
     			true ->
     				io:format("R BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]);
     				%nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
@@ -221,24 +221,26 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
           			ok
     		end;  
 
-    	
-
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
-            case deposeCheck(Leader, Center, RevCount, Total) of true->
-                writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
-                Master ! {voteStart, Time},
-                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader)
+             case deposeCheck(Leader, Center, RevCount, Total) of
+                true->
+                    writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
+                    Master ! {voteStart, Time},
+                    nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+                _ ->
+                    ok
             end,
             %Check if this node revolts
-            case revoltCheck(Leader, Center, Revolted, Time, Start) of true ->
-                writeOut("ID=~w revolted at t=~w~n",[getID(Center),Time]),
-                Revolted = true,
-                RevCount = RevCount + 1
-            end,
-            %send along to next node and hit recursion
-            Left ! {time, Leader, Start, Time + 1, RevCount},
-            nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader);
+            case revoltCheck(Leader, Center, Revolted, Time, Start) of
+                true ->
+                    writeOut("ID=~w revolted at t=~w~n",[getID(Center),Time]),
+                    Left ! {time, Leader, Start, Time +1, RevCount +1},
+                    nodelife(Left,Center,Right, Master,Total,Living,true,WasLeader);
+                _ ->
+                    Left ! {time, Leader, Start, Time + 1, RevCount},
+                    nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader)
+            end;
         {voteStart} ->
         	io:format("node ~w received msg to start election.~n", [self()]),
 
