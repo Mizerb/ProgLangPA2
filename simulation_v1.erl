@@ -192,22 +192,25 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
-            case deposeCheck(Leader, Center, RevCount, Total) of true->
-                writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
-                Master ! {voteStart, Time},
-                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+            case deposeCheck(Leader, Center, RevCount, Total) of
+                true->
+                    writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
+                    Master ! {voteStart, Time},
+                    nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
                 _ ->
                     ok
             end,
             %Check if this node revolts
-            case revoltCheck(Leader, Center, Revolted, Time, Start) of true ->
-                writeOut("ID=~w revolted at t=~w~n",[getID(Center),Time]),
-                Revolted = true,
-                RevCount = RevCount + 1
-            end,
+            case revoltCheck(Leader, Center, Revolted, Time, Start) of
+                true ->
+                    writeOut("ID=~w revolted at t=~w~n",[getID(Center),Time]),
+                    Left ! {time, Leader, Start, Time +1, RevCount +1},
+                    nodelife(Left,Center,Right, Master,Total,Living,true,WasLeader);
+                _ ->
+                    Left ! {time, Leader, Start, Time + 1, RevCount},
+                    nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader)
+            end;
             %send along to next node and hit recursion
-            Left ! {time, Leader, Start, Time + 1, RevCount},
-            nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader);
         {voteStart} ->
         	io:format("node ~w received msg to start election.~n", [self()]),
 
@@ -225,7 +228,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
         		true ->
         			nodelife(Left, Center, Right, Master, Total, Living, Revolted, false)
         	end;
-            
+
         {startClock, Time} ->
             writeOut("ID=~w became leader at t=~w~n",[getID(Center),Time]),
             Left ! {time, Center, Time, Time+1, 0},
@@ -234,7 +237,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
             %writeOut("REAL BOY ~w~n",[ZCenter]),
             nodelife(Zleft, ZCenter, Zright, ZMaster,ZTotal, false,false, false);
 
-         {returnPriority} ->
+        {returnPriority} ->
     		getPriority(Center);
     		%io:format("Priority: ~w~n", [getPriority(Center)]);
 
