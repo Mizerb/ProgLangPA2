@@ -1,4 +1,4 @@
--module(dissim).
+-module(simulation).
 -export([run/1,nodelife/8]).
 
 run(Filename) ->
