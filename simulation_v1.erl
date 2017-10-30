@@ -2,7 +2,7 @@
 -export([run/1,nodelife/8]).
 
 run(Filename) ->
-    TestName = "node1",
+    %TestName = "node1",
     Data = parser:read(Filename),
 
     % take the list of nodes and spawn the nodes that I want
@@ -57,60 +57,15 @@ sendInfo(Data,Pids, Max, [Working | Tail],Index) ->
     sendInfo(Data,Pids, Max, Tail,Index+1).
 
 holdElection(_, _, _, [], _) -> [];
-holdElection(Data,Pids, Max, [Working | Tail],Index) ->
+holdElection([Working | Tail]) ->
+    Working ! {voteStart},
+    holdElection(Tail).
+
+getResults([]) -> ok;
+getResults( [Working | Tail]) ->
     %Grab left and right depending on Index of item
-    if
-        Index == 1 ->
-            Left = lists:nth(Max,Pids),
-            Right = lists:nth(Index+1,Pids);
-        Index == Max ->
-            Right = lists:nth(1, Pids),
-            Left = lists:nth(Index-1,Pids);
-        true ->
-            Left = lists:nth(Index-1,Pids),
-            Right = lists:nth(Index+1,Pids)
-    end,
-    Center = lists:nth(Index,Pids),
-    Center ! {voteStart},
-    holdElection(Data,Pids, Max, Tail,Index+1).
-
-getResults(_, _, _, [], _) -> [];
-getResults(Data,Pids, Max, [Working | Tail],Index) ->
-    %Grab left and right depending on Index of item
-    if
-        Index == 1 ->
-            Left = lists:nth(Max,Pids),
-            Right = lists:nth(Index+1,Pids);
-        Index == Max ->
-            Right = lists:nth(1, Pids),
-            Left = lists:nth(Index-1,Pids);
-        true ->
-            Left = lists:nth(Index-1,Pids),
-            Right = lists:nth(Index+1,Pids)
-    end,
-    Center = lists:nth(Index,Pids),
-    Center ! {voteStop},
-    getResults(Data,Pids, Max, Tail,Index+1).
-
-
-
-getInfo(Data, Pids, Loc, Max) ->
-    %this would be so much easier in C
-    % I want the damn index of the tuple that matches the name
-    Center = lists:keyfind(Loc,3, Data),
-    {Index,_} = string:to_integer(string:substr(Loc, 5)),
-    if
-        Index == 1 ->
-            Left = lists:nth(Max,Data),
-            Right = lists:nth(Index+1,Data);
-        Index == Max ->
-            Right = lists:nth(1, Data),
-            Left = lists:nth(Index-1,Data);
-        true ->
-            Left = lists:nth(Index-1,Data),
-            Right = lists:nth(Index+1,Data)
-    end,
-    [Left, Center, Right].
+    Working ! {voteStop},
+    getResults(Tail).
 
 
 master(Info, Time) ->
@@ -123,18 +78,6 @@ master(Info, Time) ->
             From ! {startClock, Time},
             master(Info, Time+1)
     end.
-
-
-
-add(Revolters, Peasant, Time) ->
-    case lists:member(Peasant, Revolters) of
-        false ->
-            io:format("ID=~w revolted at t=~w~n", [getID(Peasant),Time]),
-            [Peasant | Revolters];
-        true ->
-            Revolters
-    end.
-
 
 deposeCheck(Leader, Myself, RevCount, Max) ->
     (Leader == Myself) andalso (RevCount >= ((Max+1) div 2) ).
@@ -162,7 +105,6 @@ gotMyOwnMessage(Living, MyID, SomeonesID) ->
 nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
   
     receive
-    	   			  		
     	{leftmessage, Sender_ID, Sender_Priority} ->
 
     		io:format("Node~w received a left message from node ~w ~n", [self(), Sender_ID]),
@@ -196,14 +138,13 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		end,
 
     		% check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of 
+    		case gotMyOwnMessage(Living, self(), Sender_ID) of
     			true ->
-    			
     				io:format("L BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]);
     				%nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
     			_ ->
           			ok
-    		end;    		  		
+    		end;
 
 
     	{rightmessage, Sender_ID, Sender_Priority} ->
@@ -225,7 +166,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
     		end,
 
     		% my priority is still higher than anyone I have talked to
-    		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of 
+    		case priorityLess(Living, WasLeader, getPriority(Center), Sender_Priority) of
     			true ->
 	    			% send my own message to the next node
 	    			Right ! {rightmessage, self(), getPriority(Center)},
@@ -234,27 +175,29 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
 	    			% i am still active (Living = true)
 	    			nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
-	    		_ ->																	
+	    		_ ->
 	          		ok
     		end,
 
     		% check if the actor got its own message
-    		case gotMyOwnMessage(Living, self(), Sender_ID) of 
+    		case gotMyOwnMessage(Living, self(), Sender_ID) of
     			true ->
     				io:format("R BOOOOOOOM: I got my own msg! The leader is node~w.  Priority: ~w~n", [self(), getPriority(Center)]);
     				%nodelife(Left, Center, Right, Master, Total, Living, Revolted, true);
     			_ ->
           			ok
-    		end;  
+    		end;
 
-    	
+
 
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
             case deposeCheck(Leader, Center, RevCount, Total) of true->
                 writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
                 Master ! {voteStart, Time},
-                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader)
+                nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+                _ ->
+                    ok
             end,
             %Check if this node revolts
             case revoltCheck(Leader, Center, Revolted, Time, Start) of true ->
