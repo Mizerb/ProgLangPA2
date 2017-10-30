@@ -130,6 +130,7 @@ getTolerance({_,_,_,_,Tolerance}) -> Tolerance.
 getID({ID,_,_,_,_}) -> ID.
 getName({_,_,Name,_,_}) -> Name.
 getPriority({_,_,_,Priority,_}) -> Priority.
+setPriority({A,B,C,_,D}) -> {A,B,C,0,D}.
 
 % if another actor has a priority greater than me or I was already leader
 priorityGreater(WasLeader, MyPriority, SomeonesPriority) ->
@@ -228,13 +229,14 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
         {time, Leader, Start, Time, RevCount} ->
             %Check if Leader and Deposition possible
+             writeOut("Time~w~n",[Time]),
              case deposeCheck(Leader, Center, RevCount, Total) of
                 true->
                     writeOut("ID=~w was deposed at t=~w~n",[getID(Center),Time]),
                     writeOut("My Master is ~w~n", [Master]),
                     Master ! {shit},
-                    Master ! {dude,Time},
-                    nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
+                    Master ! {dude,Time+1},
+                    nodelife(Left, setPriority(Center), Right, Master, Total, false, false, WasLeader);
                 _ ->
                     ok
             end,
@@ -245,6 +247,7 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
                     Left ! {time, Leader, Start, Time +1, RevCount +1},
                     nodelife(Left,Center,Right, Master,Total,Living,true,WasLeader);
                 _ ->
+                    writeOut("Revolt?~n",[]),
                     Left ! {time, Leader, Start, Time + 1, RevCount},
                     nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader)
             end;
