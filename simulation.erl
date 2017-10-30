@@ -148,11 +148,11 @@ priorityGreater( MyPriority, SomeonesPriority) ->
 	(SomeonesPriority > MyPriority).
 
 priorityLess(Living, MyPriority, SomeonesPriority) ->
-	(MyPriority > SomeonesPriority) .
+	(MyPriority > SomeonesPriority) and (Living == true).
 
 % if an actor gets its own message it is leader
 gotMyOwnMessage(Living, MyID, SomeonesID) ->
-	(MyID == SomeonesID) .
+	(MyID == SomeonesID) and(Living == true).
 
 % left and right are pids. center is the tuple of current node info
 nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
