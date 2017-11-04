@@ -105,11 +105,11 @@ setPriority({A,B,C,_,D}) -> {A,B,C,0,D}.
 getNode({_,Host,Name,_,_}) -> string:concat(string:concat( Name, "@"),Host).
 
 % if another actor has a priority greater than me or I was already leader
-priorityGreater( MyPriority, SomeonesPriority) ->
-	(SomeonesPriority > MyPriority).
+priorityGreater( MyPriority, SomeonesPriority, TTL) ->
+	(SomeonesPriority > MyPriority) and (TTL /= 0).
 
-priorityLess(Living, MyPriority, SomeonesPriority) ->
-	(MyPriority > SomeonesPriority) and (Living == true).
+priorityLess(Living, MyPriority, SomeonesPriority, TTL) ->
+	(MyPriority > SomeonesPriority) and (Living == true) and (TTL > 1).
 
 % if an actor gets its own message it is leader
 gotMyOwnMessage(Living, MyID, SomeonesID) ->
@@ -119,40 +119,42 @@ gotMyOwnMessage(Living, MyID, SomeonesID) ->
 nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
 
     receive
-    	{leftmessage, Sender_ID, Sender_Priority} ->
+    	{leftmessage, Sender_ID, Sender_Priority, TTL} ->
 
     		%io:format("Node~w received a left message from node ~w ~n", [self(), Sender_ID]),
             % check if the actor got its own message
     		Own = gotMyOwnMessage(Living, self(), Sender_ID),
-            Greater = priorityGreater( getPriority(Center), Sender_Priority),
-            Less = priorityLess(Living, getPriority(Center), Sender_Priority),
+            Greater = priorityGreater( getPriority(Center), Sender_Priority, TTL),
+            Less = priorityLess(Living, getPriority(Center), Sender_Priority, TTL),
             if
                 Own == true ->
                     Master ! {voteWin, self()},
                     nodelife(Left, Center, Right, Master, Total, Living, false, true);
                 Greater == true ->
-                    Left ! {leftmessage, Sender_ID, Sender_Priority},
+                    Left ! {leftmessage, Sender_ID, Sender_Priority, TTL * 2},
                     nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
                 Less == true ->
+                    Right ! {rightmessage, Sender_ID, Sender_Priority, TTL - 1},
                     nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
                 true ->
                     nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader)
             end;
 
 
-    	{rightmessage, Sender_ID, Sender_Priority} ->
+    	{rightmessage, Sender_ID, Sender_Priority, TTL} ->
 
     		Own = gotMyOwnMessage(Living, self(), Sender_ID),
-            Greater = priorityGreater( getPriority(Center), Sender_Priority),
-            Less = priorityLess(Living, getPriority(Center), Sender_Priority),
+            Greater = priorityGreater( getPriority(Center), Sender_Priority, TTL),
+            Less = priorityLess(Living, getPriority(Center), Sender_Priority, TTL),
             if
                 Own == true ->
                     Master ! {voteWin, self()},
                     nodelife(Left, Center, Right, Master, Total, Living, false, true);
                 Greater == true ->
-                    Right ! {leftmessage, Sender_ID, Sender_Priority},
+                    Right ! {leftmessage, Sender_ID, Sender_Priority, TTL * 2},
                     nodelife(Left, Center, Right, Master, Total, false, false, WasLeader);
                 Less == true ->
+                    Left ! {leftmessage, Sender_ID, Sender_Priority, TTL - 1},
                     nodelife(Left, Center, Right, Master, Total, true, false, WasLeader);
                 true ->
                     nodelife(Left, Center, Right, Master, Total, Living, false, WasLeader)
@@ -184,9 +186,9 @@ nodelife(Left, Center, Right, Master, Total, Living, Revolted, WasLeader) ->
         {voteStart} ->
         	%writeOut("node ~w received msg to start election.~n", [self()], Master),
 
-        	Left  ! {leftmessage, self(), getPriority(Center)},
-        	Right ! {rightmessage, self(), getPriority(Center)},
-
+        	Left  ! {leftmessage, self(), getPriority(Center), 1},
+        	Right ! {rightmessage, self(), getPriority(Center), 1},
+		    
         	% initially all nodes are active (Living = true)
         	nodelife(Left, Center, Right, Master, Total, true, Revolted, WasLeader);
         {voteStop} ->
